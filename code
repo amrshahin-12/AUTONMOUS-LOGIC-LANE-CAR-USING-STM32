@@ -1,0 +1,520 @@
+#include "main.h"
+#include "stdbool.h"
+#include "string.h"
+
+/* IR Sensor Macros */
+#define IR_LEFT HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13)
+#define IR_RIGHT HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)
+#define IR_MIDR HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)
+#define IR_MIDL HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1)
+
+/* Color Sensor Output */
+#define SENSOR_OUT HAL_GPIO_ReadPin(SENSOR_OUT_GPIO_Port, SENSOR_OUT_Pin)
+
+/* Global variables */
+TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
+uint32_t red = 0, green = 0, blue = 0, clear = 0;
+
+/* Function Prototypes */
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_TIM2_Init(void);
+void GPIO_Init(void);
+
+/* Motor Control Functions */
+void moveForward(int speed1, int speed2);
+void moveBackward(int speed1, int speed2);
+void stopmove();
+void moveright(int speed1, int speed2);
+void moveleft(int speed1, int speed2);
+void move(void);
+void uturnfunc(int speed1, int speed2);
+
+/* Color Sensor Functions */
+uint32_t PulseIn(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, GPIO_PinState state);
+void readColorSensor(uint32_t *red, uint32_t *green, uint32_t *blue, uint32_t *clear);
+
+int main(void)
+{
+	int labg1 = 0 , labg2 = 0, uturn = 0;
+	int red1 = 0 , red2 = 0;
+  HAL_Init();
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
+
+  /* Start PWM and timers */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+
+  /* Initialize GPIO for motors and sensors */
+  GPIO_Init();
+
+  /* Set frequency scaling to 100% for color sensor */
+  HAL_GPIO_WritePin(S0_GPIO_Port, S0_Pin, GPIO_PIN_SET);    // HIGH
+  HAL_GPIO_WritePin(S1_GPIO_Port, S1_Pin, GPIO_PIN_SET);    // HIGH
+
+  /* Main control loop */
+  while (1)
+  {
+    /* Read color sensor values */
+    readColorSensor(&red, &green, &blue, &clear);
+
+    /* Check for specific colors and set output pins accordingly */
+
+    if (red > 1.15*green /&& blue > 0.85*green && green > clear/) {
+      /* GREEN detected */
+    	if(uturn==1){
+    		moveForward(120,120);
+    		HAL_Delay(500);
+    		stopmove();
+    		HAL_Delay(200);
+    	    uturnfunc(200,200);
+    	    HAL_Delay(1400);
+    	    stopmove();
+    		HAL_Delay(200);
+    		moveForward(120,120);
+    		HAL_Delay(1000);
+    		stopmove();
+    		HAL_Delay(200);
+    	    uturnfunc(200,200);
+    	    HAL_Delay(1400);
+    	    stopmove();
+    	    return 0;
+    }
+      HAL_GPIO_WritePin(SO_GPIO_Port, SO_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(SO1_GPIO_Port, SO1_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO2_GPIO_Port, SO2_Pin, GPIO_PIN_RESET);
+      if(labg1==0){
+    	  labg1=1;
+      }else if(labg2==0 && red1==1 ){
+    	  labg2=1;
+      }else if(uturn==0 && red2==1){
+    	  uturn=1;
+      }
+      move();
+    } else if (red*1.6 < green /&& blue > red*1.2 && red > clear/) {
+      /* RED detected */
+      HAL_GPIO_WritePin(SO1_GPIO_Port, SO1_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(SO_GPIO_Port, SO_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO2_GPIO_Port, SO2_Pin, GPIO_PIN_RESET);
+      if(red1==0){
+    	  red1=1;
+      }else if(red2==0 ){
+    	  red2=1;
+      }
+      stopmove();
+      HAL_Delay(5000);
+      HAL_GPIO_WritePin(SO1_GPIO_Port, SO1_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO_GPIO_Port, SO_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO2_GPIO_Port, SO2_Pin, GPIO_PIN_RESET);
+      for(int i=0;i<1000;i++){
+    	  move();
+    	  HAL_Delay(1);
+      }
+    }else {
+      /* No specific color detected (white color case)*/
+      HAL_GPIO_WritePin(SO_GPIO_Port, SO_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO1_GPIO_Port, SO1_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(SO2_GPIO_Port, SO2_Pin, GPIO_PIN_SET);
+      move();
+    }
+  }
+}
+
+/* Motor control function implementations */
+void move(){
+	int s=170;
+    /* Line following logic using IR sensors */
+    if ((IR_LEFT == 0) && (IR_RIGHT == 0)) {
+      /* Both sensors on the line - move forward */
+      moveForward(117, 130);
+    }
+    else if ((((IR_LEFT == 0) || IR_MIDL == 0) && ((IR_RIGHT == 1) || IR_MIDR == 1))/||((IR_LEFT == 0) && IR_MIDL == 1) && ((IR_RIGHT == 1) && IR_MIDR == 1)/) {//to be tested
+      /* Left sensor on line, right sensor off - turn left */
+      moveleft(s, s);
+      /*while((IR_RIGHT == 1)){
+    	  moveleft(s,s);
+      }*/
+    }
+    else if (((IR_LEFT == 1) || IR_MIDL == 1) && ((IR_RIGHT == 0) || IR_MIDR == 0)/||((IR_LEFT == 1) && IR_MIDL == 1) && ((IR_RIGHT == 0) && IR_MIDR == 1)/) {//to be tested
+      /* Right sensor on line, left sensor off - turn right */
+      moveright(s, s);
+      /*while((IR_LEFT == 1)){
+    	  moveright(s,s);
+      }*/
+    }
+}
+void uturnfunc(int speed1, int speed2){
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, speed1); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, speed2); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_SET);  // Right forward ON
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_RESET);  // Left forward ON
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_RESET);  // Right backward OFF
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_RESET);  // Left backward OFF
+}
+
+void moveForward(int speed1, int speed2) {
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, speed1); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, speed2); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_SET);  // Right forward ON
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_SET);  // Left forward ON
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_RESET);  // Right backward OFF
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_RESET);  // Left backward OFF
+}
+
+void moveBackward(int speed1, int speed2) {
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, speed1); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, speed2); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_SET);  // Left backward ON
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_SET);  // Right backward ON
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_RESET);  // Right forward OFF
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_RESET);  // Left forward OFF
+}
+
+void stopmove() {
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_RESET);  // Right forward OFF
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_RESET);  // Left forward OFF
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_RESET);  // Right backward OFF
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_RESET);  // Left backward OFF
+}
+
+void moveleft(int speed1, int speed2) {
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, speed1); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, speed2); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_SET);  // Right forward ON
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_RESET);  // Left forward OFF
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_RESET);  // Right backward OFF
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_SET);  // Left backward ON
+}
+
+void moveright(int speed1, int speed2) {
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, speed1); // Right forward PWM
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, speed2); // Left forward PWM
+    HAL_GPIO_WritePin(DRIVER_IN4_GPIO_Port, DRIVER_IN4_Pin, GPIO_PIN_RESET);  // Left backward OFF
+    HAL_GPIO_WritePin(DRIVER_IN2_GPIO_Port, DRIVER_IN2_Pin, GPIO_PIN_RESET);  // Right forward OFF
+    HAL_GPIO_WritePin(DRIVER_IN3_GPIO_Port, DRIVER_IN3_Pin, GPIO_PIN_SET);  // Left forward ON
+    HAL_GPIO_WritePin(DRIVER_IN1_GPIO_Port, DRIVER_IN1_Pin, GPIO_PIN_SET);  // Right backward ON
+}
+
+/* Color sensor function implementations */
+uint32_t PulseIn(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, GPIO_PinState state)
+{
+  // Enable DWT for microsecond timing
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+  uint32_t startCycles, endCycles;
+  uint32_t maxCycles = SystemCoreClock; // 1 second timeout
+
+  // Wait for the pin to enter the desired state
+  DWT->CYCCNT = 0;
+  while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) != state) {
+    if (DWT->CYCCNT > maxCycles) return 0;
+  }
+
+  // Record the start time
+  startCycles = DWT->CYCCNT;
+
+  // Wait for the pin to exit the desired state
+  while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == state) {
+    if (DWT->CYCCNT - startCycles > maxCycles) return 0;
+  }
+
+  // Calculate pulse duration in microseconds
+  endCycles = DWT->CYCCNT;
+  return ((endCycles - startCycles) * 1000000) / SystemCoreClock;
+}
+
+void readColorSensor(uint32_t *red, uint32_t *green, uint32_t *blue, uint32_t *clear)
+{
+  *red = 0;
+  *green = 0;
+  *blue = 0;
+  *clear = 0;
+  for (int i = 0; i < 40; i++) {
+    // Read Red
+    HAL_GPIO_WritePin(S2_GPIO_Port, S2_Pin, GPIO_PIN_RESET); // LOW
+    HAL_GPIO_WritePin(S3_GPIO_Port, S3_Pin, GPIO_PIN_RESET); // LOW
+    HAL_Delay(0.1); // Allow time for the sensor to stabilize
+    *red += PulseIn(SENSOR_OUT_GPIO_Port, SENSOR_OUT_Pin, GPIO_PIN_RESET);
+
+    // Read Green
+    HAL_GPIO_WritePin(S2_GPIO_Port, S2_Pin, GPIO_PIN_SET);   // HIGH
+    HAL_GPIO_WritePin(S3_GPIO_Port, S3_Pin, GPIO_PIN_SET);   // HIGH
+    HAL_Delay(0.1);
+    *green += PulseIn(SENSOR_OUT_GPIO_Port, SENSOR_OUT_Pin, GPIO_PIN_RESET);
+
+    // Read Blue
+    //HAL_GPIO_WritePin(S2_GPIO_Port, S2_Pin, GPIO_PIN_RESET); // LOW
+    //HAL_GPIO_WritePin(S3_GPIO_Port, S3_Pin, GPIO_PIN_SET);   // HIGH
+    //HAL_Delay(1);
+    //*blue += PulseIn(SENSOR_OUT_GPIO_Port, SENSOR_OUT_Pin, GPIO_PIN_RESET);
+
+    // Read Clear
+    //HAL_GPIO_WritePin(S2_GPIO_Port, S2_Pin, GPIO_PIN_SET);   // HIGH
+    //HAL_GPIO_WritePin(S3_GPIO_Port, S3_Pin, GPIO_PIN_RESET); // LOW
+    //HAL_Delay(0.1);
+    //*clear += PulseIn(SENSOR_OUT_GPIO_Port, SENSOR_OUT_Pin, GPIO_PIN_RESET);
+  }
+}
+
+/* GPIO initialization function that combines both modules */
+void GPIO_Init(void)
+{
+  /* Enable clocks for GPIO ports */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_TIM2_CLK_ENABLE();
+
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* Configure motor driver pins as output */
+  GPIO_InitStruct.Pin = DRIVER_IN1_Pin | DRIVER_IN2_Pin | DRIVER_IN3_Pin | DRIVER_IN4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure IR sensor pins as input */
+  GPIO_InitStruct.Pin = IR_LEFT_Pin | IR_RIGHT_Pin | IR_MIDR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IR_MIDL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure color sensor control pins (S0-S3) */
+  GPIO_InitStruct.Pin = S0_Pin | S1_Pin | S2_Pin | S3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure color sensor output pins (SO-SO3) */
+  GPIO_InitStruct.Pin = SO_Pin | SO1_Pin | SO2_Pin ;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure color sensor output as input */
+  GPIO_InitStruct.Pin = SENSOR_OUT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(SENSOR_OUT_GPIO_Port, &GPIO_InitStruct);
+
+  /* Configure input capture pin for timer */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+/* System clock configuration function */
+
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+/* Timer 1 initialization for PWM */
+static void MX_TIM1_Init(void)
+{
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 0;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 255;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_TIM_MspPostInit(&htim1);
+}
+
+/* Timer 2 initialization for input capture */
+static void MX_TIM2_Init(void)
+{
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_IC_InitTypeDef sConfigIC = {0};
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 80;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_IC_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV8;
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* Full GPIO initialization from both modules */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* Enable GPIO clocks */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, SO_Pin|SO1_Pin|SO2_Pin, GPIO_PIN_RESET);
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, DRIVER_IN3_Pin|DRIVER_IN2_Pin|DRIVER_IN1_Pin|DRIVER_IN4_Pin|S0_Pin|S1_Pin|S2_Pin|S3_Pin, GPIO_PIN_RESET);
+
+  /* Configure IR sensor pins as input */
+  GPIO_InitStruct.Pin = IR_LEFT_Pin|IR_RIGHT_Pin|IR_MIDR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IR_MIDL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure motor driver pins as output */
+  GPIO_InitStruct.Pin = DRIVER_IN3_Pin|DRIVER_IN2_Pin|DRIVER_IN1_Pin|DRIVER_IN4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure color sensor control pins */
+  GPIO_InitStruct.Pin = S0_Pin|S1_Pin|S2_Pin|S3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure color sensor output pins */
+  GPIO_InitStruct.Pin = SO_Pin|SO1_Pin|SO2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure color sensor output as input */
+  GPIO_InitStruct.Pin = SENSOR_OUT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(SENSOR_OUT_GPIO_Port, &GPIO_InitStruct);
+}
+
+/* Error handler */
+void Error_Handler(void)
+{
+  __disable_irq();
+  while (1)
+  {
+  }
+}
+
+#ifdef USE_FULL_ASSERT
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+}
+#endif /* USE_FULL_ASSERT */
