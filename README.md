@@ -65,8 +65,8 @@ The project includes the following files:
 ### Clock Configuration
 The clock configuration is set up using STM32CubeMX. Below is a screenshot of the clock configuration:
 
-![Clock Configuration](![WhatsApp Image 2025-03-05 at 15 20 14_a0a70543](https://github.com/user-attachments/assets/3768d9cc-5350-47b4-a856-c5522e04e414)
-)
+(![WhatsApp Image 2025-03-05 at 15 20 14_a0a70543](https://github.com/user-attachments/assets/3768d9cc-5350-47b4-a856-c5522e04e414)
+
 
 ### GPIO Configuration
 The GPIO pins are configured for:
@@ -77,8 +77,8 @@ The GPIO pins are configured for:
 
 Below is a screenshot of the GPIO configuration:
 
-![GPIO Configuration](![WhatsApp Image 2025-03-05 at 15 05 09_b2be16a5](https://github.com/user-attachments/assets/9489f96f-983f-4f96-80c9-f42ee5da6025)
-)
+(![WhatsApp Image 2025-03-05 at 15 05 09_b2be16a5](https://github.com/user-attachments/assets/9489f96f-983f-4f96-80c9-f42ee5da6025)
+
 Note: The GPIO configuration file(.ioc) is already included in the repository!
 ### Timer Configuration
 The timers are configured for:
@@ -87,8 +87,7 @@ The timers are configured for:
 
 Below is a screenshot of the timer configuration:
 
-![Timer Configuration](![WhatsApp Image 2025-02-23 at 14 15 57_fc4a85a8](https://github.com/user-attachments/assets/42bc7741-77de-4d23-8e4f-8792a8839c99)
-)
+(![WhatsApp Image 2025-02-23 at 14 15 57_fc4a85a8](https://github.com/user-attachments/assets/42bc7741-77de-4d23-8e4f-8792a8839c99)
 ![WhatsApp Image 2025-02-23 at 14 15 57_9faaf1f5](https://github.com/user-attachments/assets/3130a2d1-05e6-4b2c-b79c-af4e5b88d63f)
 
 ---
