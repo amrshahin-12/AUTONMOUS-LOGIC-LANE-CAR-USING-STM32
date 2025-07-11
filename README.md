@@ -169,7 +169,8 @@ This project was developed as a team submission for [Cairo University Eco Racing
 ### 👥 Team Members
 - [@amrshahin-12](https://github.com/amrshahin-12) 
 - [@FarahhYehya](https://github.com/FarahhYehya)
-- [@omar55221] (https://github.com/omar55221).
+- [@omar55221](https://github.com/omar55221).
+- 
 ---
 
 ## Contributing
