@@ -160,6 +160,17 @@ while (1) {
 ```
 
 ---
+## 🏆 Team & Awards
+
+This project was developed as a team submission for [Cairo University Eco Racing Team], where it placed **4th place**.
+
+📄 [View Team Certificate](./certificates/4th_place_team_certificate_amr.pdf)
+
+### 👥 Team Members
+- [@amrshahin-12](https://github.com/amrshahin-12) 
+- [@FarahhYehya](https://github.com/FarahhYehya)
+- [@omar55221] (https://github.com/omar55221).
+---
 
 ## Contributing
 Contributions are welcome! Please feel free to submit a pull request or open an issue if you find any bugs or have suggestions for improvements.
