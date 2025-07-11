@@ -164,7 +164,7 @@ while (1) {
 
 This project was developed as a team submission for [Cairo University Eco Racing Team], where it placed **4th place**.
 
- [View Team Certificate](certificates/Amr Nagy Abd Elsamee Shahin.pdf)
+[View Team Certificate](certificates/Amr%20Nagy%20Abd%20Elsamee%20Shahin.pdf)
 
 ### Team Members
 - [@amrshahin-12](https://github.com/amrshahin-12) 
