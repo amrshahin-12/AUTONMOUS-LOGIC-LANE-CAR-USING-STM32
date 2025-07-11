@@ -170,7 +170,9 @@ This project was developed as a team submission for [Cairo University Eco Racing
 - [@amrshahin-12](https://github.com/amrshahin-12) 
 - [@FarahhYehya](https://github.com/FarahhYehya)
 - [@omar55221](https://github.com/omar55221).
-- 
+- Omar Nagy
+- Ward Salkini
+- Fatma Salim
 ---
 
 ## Contributing
